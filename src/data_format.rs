@@ -10,7 +10,6 @@ pub type ProjectId = usize;
 pub struct Collection {
     pub tasks: Vec<Task>,
     pub projects: Vec<Project>,
-    pub next_id: usize,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
