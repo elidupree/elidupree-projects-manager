@@ -1,10 +1,23 @@
+use crate::utils::read_json_file;
 use actix::Actor;
 use clap::{App, AppSettings, Arg, SubCommand};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 mod data_format;
 mod management;
+mod utils;
 mod webserver_glue;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ServerConfig {
+    pub port: u16,
+    pub collection_file_path: PathBuf,
+    pub username: String,
+    pub password: String,
+    pub cert_file_path: PathBuf,
+    pub private_key_file_path: PathBuf,
+}
 
 #[actix_web::main]
 async fn main() {
@@ -15,37 +28,29 @@ async fn main() {
         .subcommand(
             SubCommand::with_name("serve")
                 .long_about("Serve the web app")
-                .arg(
-                    Arg::with_name("port")
-                        .long("port")
-                        .required(true)
-                        .takes_value(true),
-                )
-                .arg(
-                    Arg::with_name("collection-file")
-                        .long("collection-file")
-                        .required(true)
-                        .takes_value(true),
-                )
-                .arg(
-                    Arg::with_name("password")
-                        .long("password")
-                        .required(true)
-                        .takes_value(true),
-                ),
+                .arg(Arg::with_name("config-file")),
         )
         .get_matches();
 
     match matches.subcommand() {
         ("serve", Some(matches)) => {
-            let port = matches.value_of("port").unwrap().parse::<u16>().unwrap();
-            let password = matches.value_of("password").unwrap();
-            let collection_file = matches.value_of("collection-file").unwrap();
+            let ServerConfig {
+                port,
+                collection_file_path,
+                username,
+                password,
+                cert_file_path,
+                private_key_file_path,
+            } = read_json_file(matches.value_of("config-file").unwrap()).unwrap();
             webserver_glue::launch(
-                management::Manager::new(PathBuf::from(collection_file), password.to_string())
+                management::Manager::new(collection_file_path)
                     .unwrap()
                     .start(),
                 port,
+                username,
+                password,
+                cert_file_path,
+                private_key_file_path,
             )
             .await;
         }
