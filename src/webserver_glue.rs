@@ -1,5 +1,5 @@
-use crate::management::{Manager, MessageFromClient, MessageToClient};
-use actix::{Actor, Addr, Handler, StreamHandler};
+use crate::management::{Manager, MessageFromClient, MessageToClient, NewClient};
+use actix::{Actor, Addr, AsyncContext, Handler, StreamHandler};
 use actix_files::NamedFile;
 use actix_web::dev::ServiceRequest;
 use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
@@ -20,6 +20,12 @@ pub struct Session {
 
 impl Actor for Session {
     type Context = ws::WebsocketContext<Self>;
+
+    fn started(&mut self, context: &mut Self::Context) {
+        self.manager.do_send(NewClient {
+            session: context.address(),
+        });
+    }
 }
 
 impl Handler<MessageToClient> for Session {

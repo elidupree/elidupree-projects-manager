@@ -18,7 +18,7 @@ impl Actor for Manager {
 #[derive(Debug, Message)]
 #[rtype(result = "()")]
 pub struct NewClient {
-    session: Addr<Session>,
+    pub(crate) session: Addr<Session>,
 }
 
 #[derive(Deserialize, Debug, Message)]
