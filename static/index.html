@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>EliDupree Projects Manager</title>
+</head>
+<body>
+<div id="app">
+<canvas id="canvas" />
+</div>
+<script>
+
+
+const canvas = document.getElementById ("canvas")
+const context = canvas.getContext ("2d")
+
+socket = new WebSocket(`ws://${location.host}/session`)
+
+socket.onopen = () => {
+  console.log('Connected')
+}
+
+socket.onmessage = (ev) => {
+  console.log('Received: ' + ev.data)
+}
+
+socket.onclose = () => {
+  console.log('Disconnected')
+}
+
+
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
+use actix::Actor;
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 mod data_format;
 mod management;
@@ -42,13 +42,9 @@ async fn main() {
             let password = matches.value_of("password").unwrap();
             let collection_file = matches.value_of("collection-file").unwrap();
             webserver_glue::launch(
-                Arc::new(Mutex::new(
-                    management::ManagedFile::new(
-                        PathBuf::from(collection_file),
-                        password.to_string(),
-                    )
-                    .unwrap(),
-                )),
+                management::Manager::new(PathBuf::from(collection_file), password.to_string())
+                    .unwrap()
+                    .start(),
                 port,
             )
             .await;
