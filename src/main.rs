@@ -13,7 +13,6 @@ mod webserver_glue;
 pub struct ServerConfig {
     pub port: u16,
     pub collection_file_path: PathBuf,
-    pub username: String,
     pub password: String,
     pub cert_file_path: PathBuf,
     pub private_key_file_path: PathBuf,
@@ -37,7 +36,6 @@ async fn main() {
             let ServerConfig {
                 port,
                 collection_file_path,
-                username,
                 password,
                 cert_file_path,
                 private_key_file_path,
@@ -47,7 +45,6 @@ async fn main() {
                     .unwrap()
                     .start(),
                 port,
-                username,
                 password,
                 cert_file_path,
                 private_key_file_path,

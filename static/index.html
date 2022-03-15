@@ -6,28 +6,48 @@
     <title>EliDupree Projects Manager</title>
 </head>
 <body>
+<input type="password" id="password"></input>
 <div id="app">
 <canvas id="canvas" />
 </div>
 <script>
 
-
 const canvas = document.getElementById ("canvas")
 const context = canvas.getContext ("2d")
+const password_input = document.getElementById ("password")
+let socket = null
 
-socket = new WebSocket(`ws://${location.host}/session`)
+function connect(password) {
+    if (socket) { socket.close() }
+    socket = new WebSocket(`wss://${location.host}/session`)
 
-socket.onopen = () => {
-  console.log('Connected')
+    socket.onopen = () => {
+      console.log('Connected')
+      socket.send(password)
+    }
+
+    socket.onmessage = (ev) => {
+      console.log('Received: ' + ev.data)
+    }
+
+    socket.onclose = () => {
+      console.log('Disconnected')
+    }
+
 }
 
-socket.onmessage = (ev) => {
-  console.log('Received: ' + ev.data)
+function password_entered() {
+    const password = password_input.value
+    connect(password)
+    window.localStorage.setItem("elidupree-projects-password", password)
 }
 
-socket.onclose = () => {
-  console.log('Disconnected')
+const saved_password = window.localStorage.getItem("elidupree-projects-password")
+if (saved_password !== null) {
+    connect(saved_password)
 }
+
+password_input.addEventListener("change", password_entered)
 
 
     </script>

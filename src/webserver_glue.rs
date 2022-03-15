@@ -1,21 +1,21 @@
 use crate::management::{Manager, MessageFromClient, MessageToClient, NewClient};
-use actix::{Actor, Addr, AsyncContext, Handler, StreamHandler};
+use actix::{Actor, ActorContext, Addr, AsyncContext, Handler, StreamHandler};
 use actix_files::NamedFile;
-use actix_web::dev::ServiceRequest;
 use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
-use actix_web_httpauth::extractors::basic::BasicAuth;
-use actix_web_httpauth::extractors::AuthenticationError;
-use actix_web_httpauth::middleware::HttpAuthentication;
-use std::fs;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::PathBuf;
 
 struct WebserverState {
     manager: Addr<Manager>,
+    password: String,
 }
 
 pub struct Session {
     manager: Addr<Manager>,
+    password: String,
+    authenticated: bool,
 }
 
 impl Actor for Session {
@@ -41,8 +41,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Session {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Text(text)) => {
-                if let Ok(message) = serde_json::from_str::<MessageFromClient>(&text) {
-                    self.manager.do_send(message)
+                println!("Received from client: {}", text);
+                if self.authenticated {
+                    if let Ok(message) = serde_json::from_str::<MessageFromClient>(&text) {
+                        self.manager.do_send(message)
+                    }
+                } else if text == self.password {
+                    self.authenticated = true;
+                } else {
+                    ctx.stop();
                 }
             }
             _ => (),
@@ -59,6 +66,8 @@ async fn session(
     ws::start(
         Session {
             manager: webserver_state.manager.clone(),
+            password: webserver_state.password.clone(),
+            authenticated: false,
         },
         &req,
         stream,
@@ -73,13 +82,23 @@ async fn index() -> impl Responder {
 pub async fn launch(
     manager: Addr<Manager>,
     port: u16,
-    username: String,
     password: String,
     cert_file_path: PathBuf,
     private_key_file_path: PathBuf,
 ) {
-    let cert = rustls::Certificate(fs::read(&cert_file_path).unwrap());
-    let private_key = rustls::PrivateKey(fs::read(&private_key_file_path).unwrap());
+    let cert_chain =
+        rustls_pemfile::certs(&mut BufReader::new(File::open(&cert_file_path).unwrap()))
+            .unwrap()
+            .into_iter()
+            .map(rustls::Certificate)
+            .collect();
+    let private_key = rustls::PrivateKey(
+        rustls_pemfile::pkcs8_private_keys(&mut BufReader::new(
+            File::open(&private_key_file_path).unwrap(),
+        ))
+        .unwrap()
+        .remove(0),
+    );
 
     let config = rustls::ServerConfig::builder()
         .with_safe_default_cipher_suites()
@@ -87,29 +106,13 @@ pub async fn launch(
         .with_safe_default_protocol_versions()
         .unwrap()
         .with_no_client_auth()
-        .with_single_cert(vec![cert], private_key)
+        .with_single_cert(cert_chain, private_key)
         .expect("bad certificate/key");
 
-    let auth = HttpAuthentication::basic(move |req: ServiceRequest, credentials: BasicAuth| {
-        let username = username.clone();
-        let password = password.clone();
-        async move {
-            if *credentials.user_id() == username
-                && matches!(credentials.password(), Some(p) if *p == password)
-            {
-                Ok(req)
-            } else {
-                let config = actix_web_httpauth::extractors::basic::Config::default();
-                Err(AuthenticationError::from(config).into())
-            }
-        }
-    });
-
-    let state = web::Data::new(WebserverState { manager });
+    let state = web::Data::new(WebserverState { manager, password });
 
     HttpServer::new(move || {
         App::new()
-            .wrap(auth.clone())
             .app_data(state.clone())
             .service(index)
             .service(session)
