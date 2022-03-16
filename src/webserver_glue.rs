@@ -43,7 +43,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Session {
             Ok(ws::Message::Text(text)) => {
                 println!("Received from client: {}", text);
                 if self.authenticated {
-                    if let Ok(message) = serde_json::from_str::<MessageFromClient>(&text) {
+                    let message = serde_json::from_str::<MessageFromClient>(&text);
+                    println!("Deserialized: {:?}", message);
+                    if let Ok(message) = message {
                         self.manager.do_send(message)
                     }
                 } else if text == self.password {

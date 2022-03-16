@@ -4,18 +4,115 @@
 <head>
     <meta charset="utf-8">
     <title>EliDupree Projects Manager</title>
+    <style>
+        #collection {
+            position: relative;
+            width: 50vw;
+            height: 50vh;
+            background-color: #ff0;
+        }
+        .task {
+            position: absolute;
+            background-color: #ccc;
+            min-width: 3em;
+            min-height: 3em;
+            border-radius: 1em;
+        }
+    </style>
 </head>
 <body>
 <input type="password" id="password"></input>
-<div id="app">
+<div id="collection">
 <canvas id="canvas" />
+</div>
+<div id="task_info">
+    <input type="text" name="short_name" />
+    <input type="text" name="long_name" />
+    <textarea name="description"></textarea>
 </div>
 <script>
 
 const canvas = document.getElementById ("canvas")
 const context = canvas.getContext ("2d")
 const password_input = document.getElementById ("password")
+const collection_element = document.getElementById ("collection")
+
 let socket = null
+
+let selected_task_id = null
+const tasks_map = new Map()
+
+const task_info_inputs = {}
+
+function send(variant, contents) {
+  if (socket !== null && socket.readyState == 1) {
+    socket.send(JSON.stringify({[variant]: contents}))
+  }
+}
+
+for (const input of document.querySelectorAll("#task_info [name]")) {
+    task_info_inputs[input.name] = input
+}
+
+collection_element.addEventListener("click", (event) => {
+    const bounds = collection_element.getBoundingClientRect()
+    const x = event.clientX - bounds.left
+    const y = event.clientY - bounds.top
+    const new_task = {
+        id: crypto.randomUUID(),
+        
+        short_name: "",
+        long_name: "",
+        description: "",
+        
+        location: [x, y],
+        parent: null,
+        relationships: [],
+    
+        status: "NotStarted",
+        work_types: [],
+        activity_history: [new Date(Date.now()).toISOString()],
+    }
+    send("CreateTask", new_task)
+})
+
+function update_task_info_panel() {
+    const selected_task = tasks_map.get(selected_task_id)
+    if (selected_task !== undefined) {
+        for (const field of ["short_name", "long_name", "description"]) {
+            task_info_inputs[field].value = selected_task[field]
+        }
+    }
+}
+
+function update_task_data_from_info_panel() {
+    const selected_task = tasks_map.get(selected_task_id)
+    if (selected_task !== undefined) {
+        for (const field of ["short_name", "long_name", "description"]) {
+            selected_task[field] = task_info_inputs[field].value
+        }
+        send("UpdateTask", selected_task)
+    }
+}
+
+const message_handlers = {}
+
+message_handlers.UpdateRecords = (collection) => {
+    for (task of collection.tasks) {
+        tasks_map.set(task.id, task)
+        let task_element = document.getElementById (task.id)
+        if (task_element === null) {
+            task_element = document.createElement("div")
+            task_element.id = task.id
+            task_element.className = "task"
+            collection_element.appendChild(task_element)
+        }
+        task_element.innerText = task.short_name
+        task_element.style.left = task.location[0]+"px"
+        task_element.style.top = task.location[1]+"px"
+    }
+    update_task_info_panel()
+}
 
 function connect(password) {
     if (socket) { socket.close() }
@@ -28,6 +125,11 @@ function connect(password) {
 
     socket.onmessage = (ev) => {
       console.log('Received: ' + ev.data)
+      const message = JSON.parse (ev.data)
+      console.log('Received: ', message)
+      for (const [k,v] of Object.entries(message)) {
+        message_handlers[k](v);
+      }
     }
 
     socket.onclose = () => {

@@ -2,9 +2,10 @@ use chrono::{DateTime, Utc};
 use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use uuid::Uuid;
 
-pub type TaskId = usize;
-pub type ProjectId = usize;
+pub type TaskId = Uuid;
+pub type ProjectId = Uuid;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 pub struct Collection {
@@ -21,7 +22,7 @@ pub struct Task {
     pub description: String,
 
     pub location: Vector2<f64>,
-    pub parent: ProjectId,
+    pub parent: Option<ProjectId>,
     pub relationships: Vec<TaskRelationship>,
 
     pub status: TaskStatus,
