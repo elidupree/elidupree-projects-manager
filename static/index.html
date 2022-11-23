@@ -5,40 +5,75 @@
     <meta charset="utf-8">
     <title>EliDupree Projects Manager</title>
     <style>
+        body {
+            margin: 0;
+        }
         #collection {
-            position: relative;
-            width: 50vw;
-            height: 50vh;
+            position: absolute;
+            width: 80vw;
+            height: 100vh;
             background-color: #ff0;
+        }
+        #sidebar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20vw;
+            height: 100vh;
+            background-color: #fff;
         }
         .task {
             position: absolute;
             background-color: #ccc;
-            min-width: 3em;
-            min-height: 3em;
+            min-width: 1em;
+            min-height: 1em;
             border-radius: 1em;
+            padding: 0.8em;
+        }
+        .task.selected {
+            padding: 0.6em;
+            border: 0.2em solid #00f;
+        }
+        textarea {
+            display: block;
+            width: 18vw;
+            height: 30em;
         }
     </style>
 </head>
 <body>
 <input type="password" id="password"></input>
-<div id="collection">
-<canvas id="canvas" />
-</div>
-<div id="task_info">
-    <input type="text" name="short_name" />
-    <input type="text" name="long_name" />
-    <textarea name="description"></textarea>
+<div id="main_interface" style="display: none">
+    <div id="collection">
+    <canvas id="canvas" />
+    </div>
+    <div id="sidebar">
+        <div id="task_info">
+            <div class="input-row">
+                <label for="short_name">Short name:</label>
+                <input id="short_name" type="text" name="short_name" />
+            </div>
+            <div class="input-row">
+                <label for="long_name">Long name:</label>
+                <input id="long_name" type="text" name="long_name" />
+            </div>
+            <div class="input-row">
+                <label for="description">Description:</label>
+                <textarea id="description" name="description"></textarea>
+            </div>
+        </div>
+    </div>
 </div>
 <script>
 
 const canvas = document.getElementById ("canvas")
 const context = canvas.getContext ("2d")
 const password_input = document.getElementById ("password")
+const main_interface_element = document.getElementById ("main_interface")
 const collection_element = document.getElementById ("collection")
 
 let socket = null
-
+let interface_ready = false
 let selected_task_id = null
 const tasks_map = new Map()
 
@@ -73,8 +108,17 @@ collection_element.addEventListener("click", (event) => {
         work_types: [],
         activity_history: [new Date(Date.now()).toISOString()],
     }
+    update_task_ui(new_task)
+    set_selected (new_task.id)
     send("CreateTask", new_task)
 })
+
+function set_selected(task_id) {
+    const old_element = document.getElementById (selected_task_id);
+    if (old_element) {old_element.classList.remove ("selected")}
+    selected_task_id = task_id
+    document.getElementById (task_id).classList.add("selected")
+}
 
 function update_task_info_panel() {
     const selected_task = tasks_map.get(selected_task_id)
@@ -95,21 +139,33 @@ function update_task_data_from_info_panel() {
     }
 }
 
+function update_task_ui (task) {
+    tasks_map.set(task.id, task)
+    let task_element = document.getElementById (task.id)
+    if (task_element === null) {
+        task_element = document.createElement("div")
+        task_element.id = task.id
+        task_element.className = "task"
+        task_element.addEventListener("click", (event) => {
+            set_selected(task_element.id)
+            event.stopPropagation()
+        })
+        collection_element.appendChild(task_element)
+    }
+    task_element.innerText = task.short_name
+    task_element.style.left = task.location[0]+"px"
+    task_element.style.top = task.location[1]+"px"
+}
+
+for (const [name,input] of Object.entries(task_info_inputs)) {
+    input.addEventListener("change", update_task_data_from_info_panel)
+}
+
 const message_handlers = {}
 
 message_handlers.UpdateRecords = (collection) => {
     for (task of collection.tasks) {
-        tasks_map.set(task.id, task)
-        let task_element = document.getElementById (task.id)
-        if (task_element === null) {
-            task_element = document.createElement("div")
-            task_element.id = task.id
-            task_element.className = "task"
-            collection_element.appendChild(task_element)
-        }
-        task_element.innerText = task.short_name
-        task_element.style.left = task.location[0]+"px"
-        task_element.style.top = task.location[1]+"px"
+        update_task_ui(task)
     }
     update_task_info_panel()
 }
@@ -124,6 +180,11 @@ function connect(password) {
     }
 
     socket.onmessage = (ev) => {
+        if (!interface_ready) {
+            interface_ready = true;
+            password_input.style.display = "none";
+            main_interface.style.display = "block";
+        }
       console.log('Received: ' + ev.data)
       const message = JSON.parse (ev.data)
       console.log('Received: ', message)
