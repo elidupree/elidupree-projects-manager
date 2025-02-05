@@ -1,0 +1,35 @@
+
+body {
+    margin: 0;
+}
+#collection {
+    position: absolute;
+    width: 80vw;
+    height: 100vh;
+    background-color: #ff0;
+}
+#sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20vw;
+    height: 100vh;
+    background-color: #fff;
+}
+.task {
+    position: absolute;
+    background-color: #ccc;
+    min-width: 1em;
+    min-height: 1em;
+    border-radius: 1em;
+    padding: 0.8em;
+}
+.task.selected {
+    padding: 0.6em;
+    border: 0.2em solid #00f;
+}
+textarea {
+    display: block;
+    width: 18vw;
+    height: 30em;
+}

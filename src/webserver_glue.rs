@@ -1,6 +1,6 @@
 use crate::management::{Manager, MessageFromClient, MessageToClient, NewClient};
 use actix::{Actor, ActorContext, Addr, AsyncContext, Handler, StreamHandler};
-use actix_files::NamedFile;
+use actix_files::{Files, NamedFile};
 use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
 use std::fs::File;
@@ -118,6 +118,7 @@ pub async fn launch(
             .app_data(state.clone())
             .service(index)
             .service(session)
+            .service(Files::new("/media", "./static/media"))
     })
     .workers(1)
     .bind_rustls(("0.0.0.0", port), config)
