@@ -27,7 +27,7 @@ async fn main() {
         .subcommand(
             SubCommand::with_name("serve")
                 .long_about("Serve the web app")
-                .arg(Arg::with_name("config-file")),
+                .arg(Arg::with_name("config-file").required(true)),
         )
         .get_matches();
 
