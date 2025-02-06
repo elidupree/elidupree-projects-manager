@@ -31,6 +31,7 @@ let socket = null
 let interface_ready = false
 let selected_task_id = null
 const tasks_map = new Map()
+let global_tags = []
 const ongoing_drags = new Map()
 
 // "view locations" are CSS pixels relative to the center of the view
@@ -121,7 +122,13 @@ function set_selected(task_id) {
 function log_automatic_update(task, update_kind) {
     const now = Date.now()
 
-    // assume that any info-updates with less than half-hour gaps between them count as a single update – delete the old ones
+    // if the task was just created, assume anything in the first hour is just the initial information
+    const created_time = new Date(task.updates[0].datetime).getTime()
+    if (now - created_time < 1000*60*60) {
+        return
+    }
+
+    // assume that any info-updates with less than half-hour gaps between them count as a single update – delete the old ones.
     for (let i = task.updates.length - 1; i >= 0; i--) {
         const update = task.updates[i]
         const update_time = new Date(update.datetime).getTime()
@@ -129,7 +136,7 @@ function log_automatic_update(task, update_kind) {
             break
         }
         if (update.kind === update_kind) {
-            task.updates.splice(i)
+            task.updates.splice(i, 1)
         }
     }
 
@@ -140,6 +147,7 @@ function log_automatic_update(task, update_kind) {
 }
 
 function update_task_info_panel() {
+    task_tags_element.innerHTML = ""
     for (const [status, button] of task_status_buttons) {
         button.classList.remove("selected")
     }
@@ -149,6 +157,25 @@ function update_task_info_panel() {
             task_info_inputs[field].value = selected_task[field]
         }
         task_status_buttons.get(selected_task.status).classList.add("selected")
+
+        for (const tag of global_tags) {
+            const element = document.createElement("button")
+            element.textContent = tag
+            element.addEventListener("click", event => {
+                const existing_index = selected_task.tags.indexOf(tag)
+                if (existing_index === -1) {
+                    selected_task.tags.push (tag)
+                } else {
+                    selected_task.tags.splice (existing_index, 1)
+                }
+                log_automatic_update(selected_task, "ChangedInfo")
+                send("UpdateTask", selected_task)
+            })
+            if (selected_task.tags.includes(tag)) {
+                element.classList.add ("selected")
+            }
+            task_tags_element.appendChild (element)
+        }
     }
 }
 
@@ -335,6 +362,7 @@ message_handlers.UpdateRecords = (collection) => {
     for (task of collection.tasks) {
         update_task_ui(task)
     }
+    global_tags = collection.tags
 //    for (const tag of collection.tags) {
 //        task_tags_element.
 //    }
