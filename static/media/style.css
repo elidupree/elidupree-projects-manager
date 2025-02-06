@@ -43,3 +43,13 @@ textarea {
     width: 18vw;
     height: 30em;
 }
+button {
+    border: 0.2em solid #ccc;
+    background-color: #eee;
+    color: #555;
+}
+button.selected {
+    border: 0.2em solid #00f;
+    background-color: #ddf;
+    color: black;
+}

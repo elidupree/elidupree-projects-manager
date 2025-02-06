@@ -5,14 +5,33 @@ const password_input = document.getElementById ("password")
 const main_interface_element = document.getElementById ("main_interface")
 const collection_element = document.getElementById ("collection")
 const tasks_element = document.getElementById ("tasks")
+const task_info_inputs = {}
+for (const input of document.querySelectorAll("#task_info [name]")) {
+    task_info_inputs[input.name] = input
+}
+const task_status_element = document.getElementById("task_status")
+const task_tags_element = document.getElementById("task_tags")
+const task_status_buttons = new Map()
+for (const status of ["NotStarted", "InProgress", "PartiallyCompleted", "Completed", "Obviated"]) {
+    const element = document.createElement("button")
+    element.textContent = status
+    element.addEventListener("click", event => {
+        const selected_task = tasks_map.get(selected_task_id)
+        if (selected_task !== undefined) {
+            selected_task.status = status
+            log_automatic_update(selected_task, "ChangedStatus")
+            send("UpdateTask", selected_task)
+        }
+    })
+    task_status_element.appendChild (element)
+    task_status_buttons.set(status, element)
+}
 
 let socket = null
 let interface_ready = false
 let selected_task_id = null
 const tasks_map = new Map()
 const ongoing_drags = new Map()
-
-const task_info_inputs = {}
 
 // "view locations" are CSS pixels relative to the center of the view
 // "collection locations" are in arbitrary coordinates
@@ -59,13 +78,9 @@ function send(variant, contents) {
     }
 }
 
-for (const input of document.querySelectorAll("#task_info [name]")) {
-    task_info_inputs[input.name] = input
-}
-
 let suppress_next_click = false
 
-tasks_element.addEventListener("click", (event) => {
+collection_element.addEventListener("click", (event) => {
     event.preventDefault()
     event.stopPropagation()
     if (suppress_next_click) {
@@ -84,8 +99,8 @@ tasks_element.addEventListener("click", (event) => {
         relationships: [],
 
         status: "NotStarted",
-        work_types: [],
-        activity_history: [{
+        tags: [],
+        updates: [{
             datetime: new Date(Date.now()).toISOString(),
             kind: "Created",
         }],
@@ -100,14 +115,40 @@ function set_selected(task_id) {
     if (old_element) {old_element.classList.remove ("selected")}
     selected_task_id = task_id
     document.getElementById (task_id).classList.add("selected")
+    update_task_info_panel()
+}
+
+function log_automatic_update(task, update_kind) {
+    const now = Date.now()
+
+    // assume that any info-updates with less than half-hour gaps between them count as a single update – delete the old ones
+    for (let i = task.updates.length - 1; i >= 0; i--) {
+        const update = task.updates[i]
+        const update_time = new Date(update.datetime).getTime()
+        if (now - update_time > 1000*60*30) {
+            break
+        }
+        if (update.kind === update_kind) {
+            task.updates.splice(i)
+        }
+    }
+
+    task.updates.push({
+        datetime: new Date(now).toISOString(),
+        kind: update_kind,
+    })
 }
 
 function update_task_info_panel() {
+    for (const [status, button] of task_status_buttons) {
+        button.classList.remove("selected")
+    }
     const selected_task = tasks_map.get(selected_task_id)
     if (selected_task !== undefined) {
         for (const field of ["short_name", "long_name", "description"]) {
             task_info_inputs[field].value = selected_task[field]
         }
+        task_status_buttons.get(selected_task.status).classList.add("selected")
     }
 }
 
@@ -139,24 +180,7 @@ function update_task_data_from_info_panel() {
             }
         }
         if (changed) {
-            const now = Date.now()
-
-            // assume that any info-updates with less than half-hour gaps between them count as a single update – delete the old ones
-            for (let i = selected_task.activity_history.length - 1; ; i--) {
-                const update = selected_task.activity_history[i]
-                const update_time = Date.parse(update.datetime).getTime()
-                if (now - update_time > 1000*60*30) {
-                    break
-                }
-                if (update.kind === "ChangedInfo") {
-                    selected_task.activity_history.splice(i)
-                }
-            }
-
-            selected_task.activity_history.push({
-                datetime: new Date(now).toISOString(),
-                kind: "ChangedInfo",
-            })
+            log_automatic_update(selected_task, "ChangedInfo")
             send("UpdateTask", selected_task)
         }
     }
@@ -179,13 +203,13 @@ function update_task_ui (task) {
             set_selected(task_element.id)
         })
         task_element.addEventListener("mousedown", (event) => {
-            start_dragging_task(task.id, "mouse", event_view_location(event))
+            start_dragging_task(task.id, "mouse", eventlike_view_location(event))
             event.preventDefault()
             event.stopPropagation()
         })
         task_element.addEventListener("touchstart", (event) => {
             for (const touch of event.changedTouches) {
-                start_dragging_task(task.id, touch.identifier, touch.pageX, touch.pageY)
+                start_dragging_task(task.id, touch.identifier, eventlike_view_location(touch))
             }
             event.preventDefault()
             event.stopPropagation()
@@ -311,6 +335,9 @@ message_handlers.UpdateRecords = (collection) => {
     for (task of collection.tasks) {
         update_task_ui(task)
     }
+//    for (const tag of collection.tags) {
+//        task_tags_element.
+//    }
     update_task_info_panel()
 }
 

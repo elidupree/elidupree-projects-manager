@@ -11,6 +11,7 @@ pub type TaskId = Uuid;
 pub struct Collection {
     pub tasks: Vec<Task>,
     // pub projects: Vec<Project>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
@@ -26,8 +27,8 @@ pub struct Task {
     pub relationships: Vec<TaskRelationship>,
 
     pub status: TaskStatus,
-    pub work_types: HashSet<WorkType>,
-    pub updates: Vec<DateTime<Utc>>,
+    pub tags: HashSet<String>,
+    pub updates: Vec<Update>,
 }
 
 // #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
@@ -70,7 +71,7 @@ pub type TaskStatus = String;
 //     ProseWriting,
 // }
 
-pub type WorkType = String;
+// pub type WorkType = String;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct TaskRelationship {
