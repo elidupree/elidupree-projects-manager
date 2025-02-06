@@ -85,7 +85,10 @@ tasks_element.addEventListener("click", (event) => {
 
         status: "NotStarted",
         work_types: [],
-        activity_history: [new Date(Date.now()).toISOString()],
+        activity_history: [{
+            datetime: new Date(Date.now()).toISOString(),
+            kind: "Created",
+        }],
     }
     update_task_ui(new_task)
     set_selected (new_task.id)
@@ -128,10 +131,34 @@ function update_task_data_from_info_panel() {
     clear_pending_update()
     const selected_task = tasks_map.get(selected_task_id)
     if (selected_task !== undefined) {
+        let changed = false
         for (const field of ["short_name", "long_name", "description"]) {
-            selected_task[field] = task_info_inputs[field].value
+            if (selected_task[field] != task_info_inputs[field].value) {
+                selected_task[field] = task_info_inputs[field].value
+                changed = true
+            }
         }
-        send("UpdateTask", selected_task)
+        if (changed) {
+            const now = Date.now()
+
+            // assume that any info-updates with less than half-hour gaps between them count as a single update – delete the old ones
+            for (let i = selected_task.activity_history.length - 1; ; i--) {
+                const update = selected_task.activity_history[i]
+                const update_time = Date.parse(update.datetime).getTime()
+                if (now - update_time > 1000*60*30) {
+                    break
+                }
+                if (update.kind === "ChangedInfo") {
+                    selected_task.activity_history.splice(i)
+                }
+            }
+
+            selected_task.activity_history.push({
+                datetime: new Date(now).toISOString(),
+                kind: "ChangedInfo",
+            })
+            send("UpdateTask", selected_task)
+        }
     }
 }
 

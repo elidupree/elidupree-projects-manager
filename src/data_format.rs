@@ -5,12 +5,12 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 pub type TaskId = Uuid;
-pub type ProjectId = Uuid;
+// pub type ProjectId = Uuid;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 pub struct Collection {
     pub tasks: Vec<Task>,
-    pub projects: Vec<Project>,
+    // pub projects: Vec<Project>,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
@@ -22,46 +22,55 @@ pub struct Task {
     pub description: String,
 
     pub location: Vector2<f64>,
-    pub parent: Option<ProjectId>,
+    pub parent: Option<TaskId>,
     pub relationships: Vec<TaskRelationship>,
 
     pub status: TaskStatus,
     pub work_types: HashSet<WorkType>,
-    pub activity_history: Vec<DateTime<Utc>>,
+    pub updates: Vec<DateTime<Utc>>,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
-pub struct Project {
-    pub id: ProjectId,
-    pub name: String,
-    pub parent: Option<ProjectId>,
-}
+// #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
+// pub struct Project {
+//     pub id: ProjectId,
+//     pub name: String,
+//     pub parent: Option<ProjectId>,
+// }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub enum TaskStatus {
-    NotStarted,
-    InProgress,
-    PartiallyCompleted,
-    Completed,
-    GotStuck,
-    Obviated,
-}
+// #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+// pub enum TaskStatus {
+//     NotStarted,
+//     InProgress,
+//     PartiallyCompleted,
+//     Completed,
+//     GotStuck,
+//     Obviated,
+// }
 
-impl Default for TaskStatus {
-    fn default() -> Self {
-        TaskStatus::NotStarted
-    }
-}
+// #[repr(transparent)]
+// #[serde(transparent)]
+// #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+// pub struct TaskStatus(String);
+//
+// impl Default for TaskStatus {
+//     fn default() -> Self {
+//         TaskStatus::NotStarted
+//     }
+// }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub enum WorkType {
-    InternetResearch,
-    SystemsDesign,
-    CodeDesign,
-    CodeGruntWork,
-    StoryBrainstorming,
-    ProseWriting,
-}
+pub type TaskStatus = String;
+
+// #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+// pub enum WorkType {
+//     InternetResearch,
+//     SystemsDesign,
+//     CodeDesign,
+//     CodeGruntWork,
+//     StoryBrainstorming,
+//     ProseWriting,
+// }
+
+pub type WorkType = String;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct TaskRelationship {
@@ -73,4 +82,17 @@ pub struct TaskRelationship {
 pub enum TaskRelationshipKind {
     Dependency,
     OptionalDependency,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+pub struct Update {
+    pub datetime: DateTime<Utc>,
+    pub kind: UpdateKind,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+pub enum UpdateKind {
+    Created,
+    ChangedStatus,
+    ChangedInfo,
 }

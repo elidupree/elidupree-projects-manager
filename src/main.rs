@@ -40,10 +40,15 @@ async fn main() {
                 cert_file_path,
                 private_key_file_path,
             } = read_json_file(matches.value_of("config-file").unwrap()).unwrap();
+            let manager = match management::Manager::new(collection_file_path) {
+                Ok(manager) => manager,
+                Err(e) => {
+                    println!("Couldn't load config file: {}", e);
+                    return;
+                }
+            };
             webserver_glue::launch(
-                management::Manager::new(collection_file_path)
-                    .unwrap()
-                    .start(),
+                manager.start(),
                 port,
                 password,
                 cert_file_path,
