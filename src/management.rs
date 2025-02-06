@@ -87,8 +87,10 @@ impl Handler<MessageFromClient> for Manager {
             }
             MessageFromClient::UpdateTask(task) => {
                 if let Some(existing) = self.collection.tasks.iter_mut().find(|e| e.id == task.id) {
-                    *existing = task;
-                    self.broadcast_and_save_everything();
+                    if *existing != task {
+                        *existing = task;
+                        self.broadcast_and_save_everything();
+                    }
                 }
             }
         }

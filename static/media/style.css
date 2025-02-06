@@ -23,6 +23,7 @@ body {
     min-height: 1em;
     border-radius: 1em;
     padding: 0.8em;
+    transform: translate(-50%, -50%);
 }
 .task.selected {
     padding: 0.6em;

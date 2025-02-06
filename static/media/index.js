@@ -9,20 +9,29 @@ let socket = null
 let interface_ready = false
 let selected_task_id = null
 const tasks_map = new Map()
+const ongoing_drags = new Map()
 
 const task_info_inputs = {}
 
 function send(variant, contents) {
-  if (socket !== null && socket.readyState == 1) {
-    socket.send(JSON.stringify({[variant]: contents}))
-  }
+    if (socket !== null && socket.readyState == 1) {
+        socket.send(JSON.stringify({[variant]: contents}))
+    }
 }
 
 for (const input of document.querySelectorAll("#task_info [name]")) {
     task_info_inputs[input.name] = input
 }
 
+let suppress_next_click = false
+
 collection_element.addEventListener("click", (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (suppress_next_click) {
+        suppress_next_click = false
+        return
+    }
     const bounds = collection_element.getBoundingClientRect()
     const x = event.clientX - bounds.left
     const y = event.clientY - bounds.top
@@ -62,7 +71,24 @@ function update_task_info_panel() {
     }
 }
 
+let pending_update = null
+function clear_pending_update() {
+    if (pending_update !== null) {
+        clearTimeout(pending_update)
+        pending_update = null
+    }
+}
+function queue_pending_update() {
+    clear_pending_update()
+    pending_update = setTimeout(flush_pending_update, 200)
+}
+function flush_pending_update() {
+    if (pending_update !== null) {
+        update_task_data_from_info_panel()
+    }
+}
 function update_task_data_from_info_panel() {
+    clear_pending_update()
     const selected_task = tasks_map.get(selected_task_id)
     if (selected_task !== undefined) {
         for (const field of ["short_name", "long_name", "description"]) {
@@ -80,7 +106,24 @@ function update_task_ui (task) {
         task_element.id = task.id
         task_element.className = "task"
         task_element.addEventListener("click", (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (suppress_next_click) {
+                suppress_next_click = false
+                return
+            }
             set_selected(task_element.id)
+        })
+        task_element.addEventListener("mousedown", (event) => {
+            start_dragging_task(task.id, "mouse", event.pageX, event.pageY)
+            event.preventDefault()
+            event.stopPropagation()
+        })
+        task_element.addEventListener("touchstart", (event) => {
+            for (const touch of event.changedTouches) {
+                start_dragging_task(task.id, touch.identifier, touch.pageX, touch.pageY)
+            }
+            event.preventDefault()
             event.stopPropagation()
         })
         collection_element.appendChild(task_element)
@@ -90,8 +133,116 @@ function update_task_ui (task) {
     task_element.style.top = task.location[1]+"px"
 }
 
+function start_dragging_task(task_id, drag_id, x, y) {
+    const existing = ongoing_drags.get(task_id)
+    if (existing !== undefined) {
+        // Steal from the existing one, I guess
+        existing.x = x
+        existing.y = y
+        existing.drag_id = drag_id
+    }
+    else {
+        const task = tasks_map.get(task_id)
+        ongoing_drags.set(task_id, {
+            task_id,
+            drag_id,
+            x,
+            y,
+            original_x: x,
+            original_y: y,
+            task_original_x: task.location[0],
+            task_original_y: task.location[1],
+            disturbed: false,
+        })
+    }
+    console.log("started drag", ongoing_drags)
+}
+
+function continue_dragging_task(drag, x, y) {
+    const threshold = 5
+    if (Math.abs(x - drag.original_x) > threshold || Math.abs(y - drag.original_y) > threshold) {
+        drag.disturbed = true
+    }
+    if (drag.disturbed) {
+        const task = tasks_map.get(drag.task_id)
+        task.location[0] += (x - drag.x)
+        task.location[1] += (y - drag.y)
+        update_task_ui(task)
+    }
+    drag.x = x
+    drag.y = y
+//    console.log("continued drag")
+}
+
+function cancel_dragging_task (drag) {
+    const task = tasks_map.get(drag.task_id)
+    task.location[0] = drag.task_original_x
+    task.location[1] = drag.task_original_y
+    send("UpdateTask", task)
+    ongoing_drags.delete(drag.task_id)
+}
+
+function finish_dragging_task (drag) {
+    const task = tasks_map.get(drag.task_id)
+    send("UpdateTask", task)
+    console.log(ongoing_drags.delete(drag.task_id))
+    console.log("finished drag", ongoing_drags)
+}
+
+collection_element.addEventListener("mousemove", (event) => {
+    for (const [task_id, drag] of ongoing_drags) {
+        if (drag.drag_id === "mouse") {
+            continue_dragging_task(drag, event.pageX, event.pageY)
+            event.preventDefault()
+        }
+    }
+})
+collection_element.addEventListener("touchmove", (event) => {
+    for (const touch of event.changedTouches) {
+        for (const [task_id, drag] of ongoing_drags) {
+            if (drag.drag_id === touch.identifier) {
+                continue_dragging_task(drag)
+                event.preventDefault()
+            }
+        }
+    }
+})
+
+collection_element.addEventListener("mouseup", (event) => {
+    for (const [task_id, drag] of ongoing_drags) {
+        if (drag.drag_id === "mouse") {
+            if (drag.disturbed) {
+                suppress_next_click = true
+            }
+            finish_dragging_task(drag)
+            event.preventDefault()
+        }
+    }
+})
+collection_element.addEventListener("touchend", (event) => {
+    for (const touch of event.changedTouches) {
+        for (const [task_id, drag] of ongoing_drags) {
+            if (drag.drag_id === touch.identifier) {
+                finish_dragging_task(drag)
+                event.preventDefault()
+            }
+        }
+    }
+})
+
+collection_element.addEventListener("touchcancel", (event) => {
+    for (const touch of event.changedTouches) {
+        for (const [task_id, drag] of ongoing_drags) {
+            if (drag.drag_id === touch.identifier) {
+                cancel_dragging_task(drag)
+            }
+        }
+    }
+})
+
 for (const [name,input] of Object.entries(task_info_inputs)) {
     input.addEventListener("change", update_task_data_from_info_panel)
+    input.addEventListener("input", queue_pending_update)
 }
 
 const message_handlers = {}
@@ -118,16 +269,16 @@ function connect(password) {
             password_input.style.display = "none";
             main_interface.style.display = "block";
         }
-      console.log('Received: ' + ev.data)
-      const message = JSON.parse (ev.data)
-      console.log('Received: ', message)
-      for (const [k,v] of Object.entries(message)) {
-        message_handlers[k](v);
-      }
+//        console.log('Received: ' + ev.data)
+        const message = JSON.parse (ev.data)
+        console.log('Received: ', message)
+        for (const [k,v] of Object.entries(message)) {
+            message_handlers[k](v);
+        }
     }
 
     socket.onclose = () => {
-      console.log('Disconnected')
+        console.log('Disconnected')
     }
 
 }
