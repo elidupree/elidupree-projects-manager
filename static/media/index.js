@@ -40,8 +40,6 @@ const global_view = {
     view_location_of_inner_origin: [0, 0],
     view_units_per_inner_unit: 1,
 }
-//let collection_location_of_view_center = [0, 0]
-//let collection_units_per_view_unit = 1
 
 function zipWith(arrays, fn) {
     const result = []
@@ -92,54 +90,6 @@ function view_location_of_task(task, include_drags) {
     console.log(task, view_within_task(task, include_drags))
     return view_within_task(task, include_drags).view_location_of_inner_origin
 }
-
-//function child_environment_location_to_task_environment_location(task, l) {
-//    return zipWith([l, task.location], (p => p[1] + p[0]*task.my_environment_units_per_child_environment_unit))
-//}
-//
-//function task_environment_location_to_child_environment_location(task, l) {
-//    return zipWith([l, task.location], (p => (p[0] - p[1]) / task.my_environment_units_per_child_environment_unit))
-//}
-//
-//function task_environment_location_to_view_location(task, l, include_drags) {
-//    const parent = task.parent
-//    if (parent === null) {
-//        return l
-//    }
-//    else {
-//        let l_with_drag = l
-//        const drag = ongoing_drags.get (parent.id)
-//        if (drag?.disturbed) {
-//            return location_add(view_location_to_task_environment_location(task), location_sub(drag.pointer_location, drag.original_pointer_location)
-//        }
-//        return task_environment_location_to_collection_location(parent, child_environment_location_to_task_environment_location(parent, l))
-//    }
-//}
-//
-//function collection_location_to_task_environment_location(task, l) {
-//    if (task.parent === null) {
-//        return l
-//    }
-//    else {
-//        return task_environment_location_to_child_environment_location(task.parent, collection_location_to_task_environment_location(task.parent, l))
-//    }
-//}
-//
-//function task_environment_location_to_view_location(task, l) {
-//    return collection_location_to_view_location(task_environment_location_to_collection_location(task, l))
-//}
-//
-//function view_location_to_task_environment_location(task, l) {
-//    return collection_location_to_task_environment_location(task, view_location_to_collection_location(l))
-//}
-//
-//function collection_location_of_task(task, l) {
-//    return task_environment_location_to_collection_location(task, task.location)
-//}
-//
-//function view_location_of_task_ignoring_drag(task, l) {
-//    return task_environment_location_to_view_location(task, task.location)
-//}
 
 function eventlike_view_location(event) {
     const bounds = tasks_element.getBoundingClientRect()
