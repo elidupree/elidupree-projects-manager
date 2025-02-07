@@ -5,6 +5,7 @@ const password_input = document.getElementById ("password")
 const main_interface_element = document.getElementById ("main_interface")
 const collection_element = document.getElementById ("collection")
 const tasks_element = document.getElementById ("tasks")
+const all_tasks_bounds_element = document.getElementById ("all_tasks_bounds")
 const task_info_inputs = {}
 for (const input of document.querySelectorAll("#task_info [name]")) {
     task_info_inputs[input.name] = input
@@ -31,7 +32,7 @@ let socket = null
 let interface_ready = false
 let selected_task_id = null
 const tasks_map = new Map()
-const task_children_map = new Map()
+const container_ui_cache_map = new Map()
 let global_tags = []
 const ongoing_drags = new Map()
 
@@ -61,34 +62,34 @@ function inner_location_to_view_location(view, inner_location) {
 function view_upon_task_to_view_upon_children(view, task) {
     return {
         view_location_of_inner_origin: inner_location_to_view_location(view, task.location),
-        inner_units_per_view_unit: view.view_units_per_inner_unit * task.my_environment_units_per_child_environment_unit,
+        view_units_per_inner_unit: view.view_units_per_inner_unit * task.my_environment_units_per_child_environment_unit,
     }
 }
 
-function view_within_task(task, include_drags) {
-    if (task === null || task === undefined) {
-        return global_view
-    }
+//function view_within_task(task, include_drags) {
+//    if (task === null || task === undefined) {
+//        return global_view
+//    }
+//
+//
+//    if (include_drags) {
+//        const drag = ongoing_drags.get (task.id)
+//        if (drag?.disturbed) {
+//            return drag.imposed_view_within_task
+//        }
+//    }
+//
+//    const view_upon_task = view_within_task(tasks_map.get(task.parent_id), include_drags)
+//    const view_location_of_inner_origin = inner_location_to_view_location(view_upon_task, task.location)
+//    return {
+//        view_location_of_inner_origin,
+//        view_units_per_inner_unit: view_upon_task.view_units_per_inner_unit * task.my_environment_units_per_child_environment_unit,
+//    }
+//}
 
-
-    if (include_drags) {
-        const drag = ongoing_drags.get (task.id)
-        if (drag?.disturbed) {
-            return drag.imposed_view_within_task
-        }
-    }
-
-    const view_upon_task = view_within_task(tasks_map.get(task.parent_id), include_drags)
-    const view_location_of_inner_origin = inner_location_to_view_location(view_upon_task, task.location)
-    return {
-        view_location_of_inner_origin,
-        view_units_per_inner_unit: view_upon_task.view_units_per_inner_unit * task.my_environment_units_per_child_environment_unit,
-    }
-}
-
-function view_location_of_task(task, include_drags) {
-    return view_within_task(task, include_drags).view_location_of_inner_origin
-}
+//function view_location_of_task(task, include_drags) {
+//    return view_within_task(task, include_drags).view_location_of_inner_origin
+//}
 
 function eventlike_view_location(event) {
     const bounds = tasks_element.getBoundingClientRect()
@@ -103,9 +104,7 @@ collection_element.addEventListener("wheel", (event) => {
     const ratio = Math.pow(0.5, event.deltaY/300)
     global_view.view_location_of_inner_origin = zipWith([eventlike_view_location(event), global_view.view_location_of_inner_origin], p => p[0] + (p[1]-p[0]) * ratio)
     global_view.view_units_per_inner_unit *= ratio
-    for (task of tasks_map.values()) {
-        update_task_ui(task)
-    }
+    update_container_ui(null)
 })
 
 function location_add (a, b) {
@@ -124,7 +123,8 @@ function send(variant, contents) {
 
 let suppress_next_click = false
 
-function create_task(parent, view_location) {
+function create_task(parent_id, view_location) {
+    const parent_cache = container_ui_cache_map.get(parent_id)
     const new_task = {
         id: crypto.randomUUID(),
 
@@ -132,8 +132,8 @@ function create_task(parent, view_location) {
         long_name: "",
         description: "",
 
-        location: view_location_to_inner_location(view_within_task(parent), view_location),
-        parent_id: parent?.id,
+        location: view_location_to_inner_location(parent_cache.view_within, view_location),
+        parent_id,
         my_environment_units_per_child_environment_unit: 1,
         relationships: [],
 
@@ -144,8 +144,11 @@ function create_task(parent, view_location) {
             kind: "Created",
         }],
     }
-    update_task_ui(new_task)
-    set_selected (new_task.id)
+    tasks_map.set(new_task.id, new_task)
+    container_ui_cache_map.set(new_task.id, {children:[]})
+    parent_cache.children.push(new_task)
+    update_container_ui(null)
+    set_selected(new_task.id)
     send("CreateTask", new_task)
 }
 
@@ -156,7 +159,7 @@ collection_element.addEventListener("click", (event) => {
         suppress_next_click = false
         return
     }
-    selected_task = null
+    set_selected(null)
 })
 
 let mouse_raw_location = [0,0]
@@ -172,13 +175,15 @@ document.addEventListener("keydown", (event) => {
         event.stopPropagation()
         let element = document.elementFromPoint(...mouse_raw_location)
         let parent
+        let parent_id
         while (true) {
             parent = tasks_map.get(element.id)
-            if (task !== undefined) {
+            if (parent !== undefined) {
+                parent_id = element.id
                 break
             }
             if (element.id === collection_element.id) {
-                parent = null
+                parent_id = null
                 break
             }
             element = element.parent
@@ -186,7 +191,7 @@ document.addEventListener("keydown", (event) => {
                 return
             }
         }
-        create_task(parent, mouse_view_location)
+        create_task(parent_id, mouse_view_location)
     }
 })
 
@@ -196,7 +201,9 @@ function set_selected(task_id) {
     const old_element = document.getElementById (selected_task_id);
     if (old_element) {old_element.classList.remove ("selected")}
     selected_task_id = task_id
-    document.getElementById (task_id).classList.add("selected")
+    if (task_id !== null) {
+      document.getElementById(task_id).classList.add("selected")
+    }
     update_task_info_panel()
 }
 
@@ -294,12 +301,100 @@ function update_task_data_from_info_panel() {
     }
 }
 
-function update_task_ui (task) {
-    if (!task_children_map.has(task.id)) {
-        task_children_map.set(task.id, [])
+const container_padding = 10
+function update_container_ui(id) {
+    const cache = container_ui_cache_map.get(id)
+    const task = tasks_map.get(id)
+    const drag = ongoing_drags.get(id)
+    if (drag?.disturbed) {
+        cache.view_within = drag.imposed_view_within_task
     }
-    tasks_map.set(task.id, task)
+    else if (id === null) {
+        cache.view_within = global_view
+        cache.z_index = 0
+    } else {
+        cache.view_within = view_upon_task_to_view_upon_children(cache.view_upon, task)
+    }
+    if (cache.children.length === 0) {
+        cache.view_bounds = {
+            top: cache.view_within.view_location_of_inner_origin[1],
+            left: cache.view_within.view_location_of_inner_origin[0],
+            right: cache.view_within.view_location_of_inner_origin[0],
+            bottom: cache.view_within.view_location_of_inner_origin[1],
+        }
+    }
+    else {
+        cache.view_bounds = {
+            top: Infinity,
+            left: Infinity,
+            right: -Infinity,
+            bottom: -Infinity,
+        }
+    }
+    for (const child of cache.children) {
+        const child_cache = container_ui_cache_map.get(child.id)
+        child_cache.view_upon = cache.view_within
+        child_cache.z_index = cache.z_index + 1
+        update_container_ui(child.id)
+        for (const bound of ["top", "left"]) {
+            const forced = child_cache.view_bounds[bound] - container_padding
+            console.log(forced, cache.view_bounds[bound])
+            if (forced < cache.view_bounds[bound]) {
+                cache.view_bounds[bound] = forced
+            }
+        }
+        for (const bound of ["right", "bottom"]) {
+            const forced = child_cache.view_bounds[bound] + container_padding
+            if (forced > cache.view_bounds[bound]) {
+                cache.view_bounds[bound] = forced
+            }
+        }
+    }
+    for (const bound of ["top", "bottom", "left", "right"]) {
+        if(!Number.isFinite(cache.view_bounds[bound])) {
+            throw new Error();
+        }
+    }
+    for (const [a,b] of [["top", "bottom"], ["left", "right"]]) {
+        const diff = cache.view_bounds[b] - cache.view_bounds[a]
+        let expansion = 0.1
+        if (id === null) {
+            expansion = 0.3
+        }
+        cache.view_bounds[a] -= diff*expansion
+        cache.view_bounds[b] += diff*expansion
+    }
+    if (id !== null) {
+        update_task_ui(task)
+    }
+    let bounds_element
+    if (id === null) {
+        bounds_element = all_tasks_bounds_element
+    } else {
+        bounds_element = document.getElementById(id)
+    }
+    bounds_element.style.zIndex = cache.z_index
+console.log (id, cache)
+    if (cache.children.length > 0) {
+        for (const bound of ["top", "left", "right", "bottom"]) {
+            bounds_element.style[bound] = cache.view_bounds[bound]+"px"
+        }
+        bounds_element.style.height = (cache.view_bounds.bottom - cache.view_bounds.top)+"px"
+        bounds_element.style.width = (cache.view_bounds.right - cache.view_bounds.left)+"px"
+    } else {
+        const view_location = cache.view_within.view_location_of_inner_origin
+        bounds_element.style.left = view_location[0]+"px"
+        bounds_element.style.top = view_location[1]+"px"
+        bounds_element.style.removeProperty("bottom")
+        bounds_element.style.removeProperty("right")
+        bounds_element.style.removeProperty("width")
+        bounds_element.style.removeProperty("height")
+    }
+}
+
+function update_task_ui(task, view_upon_task) {
     let task_element = document.getElementById (task.id)
+    const cache = container_ui_cache_map.get(task.id)
     if (task_element === null) {
         task_element = document.createElement("div")
         task_element.id = task.id
@@ -328,15 +423,16 @@ function update_task_ui (task) {
         tasks_element.appendChild(task_element)
     }
     task_element.innerText = task.short_name
-
-    const view_location = view_location_of_task(task, true)
-    task_element.style.left = view_location[0]+"px"
-    task_element.style.top = view_location[1]+"px"
+    if (cache.children.length > 0) {
+        task_element.className = "task task_group"
+    } else {
+        task_element.className = "task single_task"
+    }
 
     // TODO: don't be quadratic
-    for (const child of task_children_map.get(task.id)) {
-        update_task_ui(child)
-    }
+//    for (const child of container_ui_cache_map.get(task.id).children) {
+//        update_task_ui(child)
+//    }
 }
 
 function start_dragging_task(task_id, drag_id, pointer_location) {
@@ -348,7 +444,8 @@ function start_dragging_task(task_id, drag_id, pointer_location) {
     }
     else {
         const task = tasks_map.get(task_id)
-        const tv = view_within_task(task, true)
+        const cache = container_ui_cache_map.get(task_id)
+        const tv = cache.view_within
         ongoing_drags.set(task_id, {
             task_id,
             drag_id,
@@ -373,7 +470,7 @@ function continue_dragging_task(drag, pointer_location) {
              view_location_of_inner_origin: location_sub(pointer_location, drag.pointer_location_relative_to_task),
              view_units_per_inner_unit: drag.view_units_per_task_child_environment_unit,
          }
-        update_task_ui(task)
+        update_container_ui(drag.task_id)
     }
     drag.pointer_location = pointer_location.slice()
 //    console.log("continued drag")
@@ -387,7 +484,8 @@ function cancel_dragging_task (drag) {
 function finish_dragging_task (drag) {
     const task = tasks_map.get(drag.task_id)
     if (drag.disturbed) {
-        const pv = view_within_task(tasks_map.get(task.parent_id))
+        const cache = container_ui_cache_map.get(drag.task_id)
+        const pv = cache.view_upon
         task.location = view_location_to_inner_location(pv, drag.imposed_view_within_task.view_location_of_inner_origin)
         console.log(drag, pv)
         task.my_environment_units_per_child_environment_unit = drag.imposed_view_within_task.view_units_per_inner_unit / pv.view_units_per_inner_unit
@@ -455,18 +553,18 @@ for (const [name,input] of Object.entries(task_info_inputs)) {
 const message_handlers = {}
 
 message_handlers.UpdateRecords = (collection) => {
-    task_children_map.clear()
-    task_children_map.set(null, [])
+    tasks_map.clear()
+    container_ui_cache_map.clear()
+    container_ui_cache_map.set(null, {children:[]})
     for (task of collection.tasks) {
-        task_children_map.set(task.id, [])
+        tasks_map.set(task.id, task)
+        container_ui_cache_map.set(task.id, {children:[]})
     }
     for (task of collection.tasks) {
-        task_children_map.get(task.parent_id).push(task)
+        container_ui_cache_map.get(task.parent_id).children.push(task)
     }
 
-    for (task of collection.tasks) {
-        update_task_ui(task)
-    }
+    update_container_ui(null)
     global_tags = collection.tags
 //    for (const tag of collection.tags) {
 //        task_tags_element.

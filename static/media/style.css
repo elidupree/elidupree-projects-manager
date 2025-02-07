@@ -4,10 +4,16 @@ body {
 }
 #collection {
     position: absolute;
+    left: 0;
+    top: 0;
     width: 80vw;
     height: 100vh;
-    background-color: #ff0;
+    background-color: #aaf;
     overflow: hidden;
+}
+#all_tasks_bounds {
+    position: absolute;
+    background: radial-gradient(closest-side, #fff, #aaf);
 }
 #tasks {
     position: absolute;
@@ -27,12 +33,20 @@ body {
 }
 .task {
     position: absolute;
-    background-color: #ccc;
     min-width: 1em;
     min-height: 1em;
     border-radius: 1em;
     padding: 0.8em;
+}
+.single_task {
+    position: absolute;
+    background-color: #ccc;
     transform: translate(-50%, -50%);
+}
+.task_group {
+    background: #0003;
+    padding: 0.6em;
+    border: 0.2em solid #000a;
 }
 .task.selected {
     padding: 0.6em;
