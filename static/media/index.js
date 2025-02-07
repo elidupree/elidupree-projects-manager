@@ -31,6 +31,7 @@ let socket = null
 let interface_ready = false
 let selected_task_id = null
 const tasks_map = new Map()
+const task_children_map = new Map()
 let global_tags = []
 const ongoing_drags = new Map()
 
@@ -66,7 +67,6 @@ function view_upon_task_to_view_upon_children(view, task) {
 
 function view_within_task(task, include_drags) {
     if (task === null || task === undefined) {
-        console.log("a",global_view)
         return global_view
     }
 
@@ -78,16 +78,15 @@ function view_within_task(task, include_drags) {
         }
     }
 
-    const view_upon_task = view_within_task(tasks_map.get(task.parent), include_drags)
+    const view_upon_task = view_within_task(tasks_map.get(task.parent_id), include_drags)
     const view_location_of_inner_origin = inner_location_to_view_location(view_upon_task, task.location)
     return {
         view_location_of_inner_origin,
-        inner_units_per_view_unit: view_upon_task.view_units_per_inner_unit * task.my_environment_units_per_child_environment_unit,
+        view_units_per_inner_unit: view_upon_task.view_units_per_inner_unit * task.my_environment_units_per_child_environment_unit,
     }
 }
 
 function view_location_of_task(task, include_drags) {
-    console.log(task, view_within_task(task, include_drags))
     return view_within_task(task, include_drags).view_location_of_inner_origin
 }
 
@@ -96,9 +95,9 @@ function eventlike_view_location(event) {
     return [event.clientX - bounds.left, event.clientY - bounds.top]
 }
 
-function eventlike_collection_location(event) {
-    return view_location_to_inner_location(global_view, eventlike_view_location(event))
-}
+//function eventlike_collection_location(event) {
+//    return view_location_to_inner_location(global_view, eventlike_view_location(event))
+//}
 
 collection_element.addEventListener("wheel", (event) => {
     const ratio = Math.pow(0.5, event.deltaY/300)
@@ -125,13 +124,7 @@ function send(variant, contents) {
 
 let suppress_next_click = false
 
-collection_element.addEventListener("click", (event) => {
-    event.preventDefault()
-    event.stopPropagation()
-    if (suppress_next_click) {
-        suppress_next_click = false
-        return
-    }
+function create_task(parent, view_location) {
     const new_task = {
         id: crypto.randomUUID(),
 
@@ -139,8 +132,8 @@ collection_element.addEventListener("click", (event) => {
         long_name: "",
         description: "",
 
-        location: eventlike_collection_location(event),
-        parent: null,
+        location: view_location_to_inner_location(view_within_task(parent), view_location),
+        parent_id: parent?.id,
         my_environment_units_per_child_environment_unit: 1,
         relationships: [],
 
@@ -154,7 +147,50 @@ collection_element.addEventListener("click", (event) => {
     update_task_ui(new_task)
     set_selected (new_task.id)
     send("CreateTask", new_task)
+}
+
+collection_element.addEventListener("click", (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (suppress_next_click) {
+        suppress_next_click = false
+        return
+    }
+    selected_task = null
 })
+
+let mouse_raw_location = [0,0]
+let mouse_view_location = [0,0]
+document.addEventListener("mousemove", event => {
+    mouse_raw_location = [event.clientX, event.clientY]
+    mouse_view_location = eventlike_view_location(event)
+})
+document.addEventListener("keydown", (event) => {
+//    console.log(event.key)
+    if (event.key == "c") {
+        event.preventDefault()
+        event.stopPropagation()
+        let element = document.elementFromPoint(...mouse_raw_location)
+        let parent
+        while (true) {
+            parent = tasks_map.get(element.id)
+            if (task !== undefined) {
+                break
+            }
+            if (element.id === collection_element.id) {
+                parent = null
+                break
+            }
+            element = element.parent
+            if (element === null) {
+                return
+            }
+        }
+        create_task(parent, mouse_view_location)
+    }
+})
+
+
 
 function set_selected(task_id) {
     const old_element = document.getElementById (selected_task_id);
@@ -259,6 +295,9 @@ function update_task_data_from_info_panel() {
 }
 
 function update_task_ui (task) {
+    if (!task_children_map.has(task.id)) {
+        task_children_map.set(task.id, [])
+    }
     tasks_map.set(task.id, task)
     let task_element = document.getElementById (task.id)
     if (task_element === null) {
@@ -293,6 +332,11 @@ function update_task_ui (task) {
     const view_location = view_location_of_task(task, true)
     task_element.style.left = view_location[0]+"px"
     task_element.style.top = view_location[1]+"px"
+
+    // TODO: don't be quadratic
+    for (const child of task_children_map.get(task.id)) {
+        update_task_ui(child)
+    }
 }
 
 function start_dragging_task(task_id, drag_id, pointer_location) {
@@ -343,9 +387,10 @@ function cancel_dragging_task (drag) {
 function finish_dragging_task (drag) {
     const task = tasks_map.get(drag.task_id)
     if (drag.disturbed) {
-        const pv = view_within_task(task.parent)
+        const pv = view_within_task(tasks_map.get(task.parent_id))
         task.location = view_location_to_inner_location(pv, drag.imposed_view_within_task.view_location_of_inner_origin)
-        task.my_environment_units_per_child_environment_unit = drag.imposed_view_within_task.view_units_per_task_child_environment_unit / pv.view_units_per_inner_unit
+        console.log(drag, pv)
+        task.my_environment_units_per_child_environment_unit = drag.imposed_view_within_task.view_units_per_inner_unit / pv.view_units_per_inner_unit
         send("UpdateTask", task)
     }
     ongoing_drags.delete(drag.task_id)
@@ -410,6 +455,15 @@ for (const [name,input] of Object.entries(task_info_inputs)) {
 const message_handlers = {}
 
 message_handlers.UpdateRecords = (collection) => {
+    task_children_map.clear()
+    task_children_map.set(null, [])
+    for (task of collection.tasks) {
+        task_children_map.set(task.id, [])
+    }
+    for (task of collection.tasks) {
+        task_children_map.get(task.parent_id).push(task)
+    }
+
     for (task of collection.tasks) {
         update_task_ui(task)
     }

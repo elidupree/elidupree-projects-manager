@@ -24,7 +24,7 @@ pub struct Task {
 
     // Location is relative to parent, if you have a parent
     pub location: Vector2<f64>,
-    pub parent: Option<TaskId>,
+    pub parent_id: Option<TaskId>,
     // Irrelevant if you have no children
     pub my_environment_units_per_child_environment_unit: f64,
     pub relationships: Vec<TaskRelationship>,
