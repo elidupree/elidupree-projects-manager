@@ -168,30 +168,44 @@ document.addEventListener("mousemove", event => {
     mouse_raw_location = [event.clientX, event.clientY]
     mouse_view_location = eventlike_view_location(event)
 })
+function container_id_under_mouse() {
+    let element = document.elementFromPoint(...mouse_raw_location)
+    let parent
+    let parent_id
+    while (true) {
+        parent = tasks_map.get(element.id)
+        if (parent !== undefined) {
+            return element.id
+        }
+        if (element.id === collection_element.id) {
+            return null
+        }
+        element = element.parent
+        if (element === undefined) {
+            // TODO: handle how this means you're not in the collection
+            return null
+        }
+    }
+}
 document.addEventListener("keydown", (event) => {
-//    console.log(event.key)
+//    console.log(event.key, event.target)
+    if (event.target.tagName !== "BODY") {
+        return
+    }
     if (event.key == "c") {
         event.preventDefault()
-        event.stopPropagation()
-        let element = document.elementFromPoint(...mouse_raw_location)
-        let parent
-        let parent_id
-        while (true) {
-            parent = tasks_map.get(element.id)
-            if (parent !== undefined) {
-                parent_id = element.id
-                break
-            }
-            if (element.id === collection_element.id) {
-                parent_id = null
-                break
-            }
-            element = element.parent
-            if (element === null) {
-                return
-            }
+        create_task(container_id_under_mouse(), mouse_view_location)
+    }
+    if (event.key == "m") {
+        const selected_task = tasks_map.get(selected_task_id)
+        if (selected_task !== undefined) {
+            event.preventDefault()
+            // TODO fix hack: relying on server to update for the UI to remain consistent
+            selected_task.parent_id = container_id_under_mouse()
+            const view_location = container_ui_cache_map.get(selected_task_id).view_within.view_location_of_inner_origin
+            selected_task.location = view_location_to_inner_location(container_ui_cache_map.get(selected_task.parent_id).view_within, view_location)
+            send("UpdateTask", selected_task)
         }
-        create_task(parent_id, mouse_view_location)
     }
 })
 
@@ -338,7 +352,7 @@ function update_container_ui(id) {
         update_container_ui(child.id)
         for (const bound of ["top", "left"]) {
             const forced = child_cache.view_bounds[bound] - container_padding
-            console.log(forced, cache.view_bounds[bound])
+//            console.log(forced, cache.view_bounds[bound])
             if (forced < cache.view_bounds[bound]) {
                 cache.view_bounds[bound] = forced
             }
@@ -374,7 +388,7 @@ function update_container_ui(id) {
         bounds_element = document.getElementById(id)
     }
     bounds_element.style.zIndex = cache.z_index
-console.log (id, cache)
+//console.log (id, cache)
     if (cache.children.length > 0) {
         for (const bound of ["top", "left", "right", "bottom"]) {
             bounds_element.style[bound] = cache.view_bounds[bound]+"px"
@@ -487,7 +501,7 @@ function finish_dragging_task (drag) {
         const cache = container_ui_cache_map.get(drag.task_id)
         const pv = cache.view_upon
         task.location = view_location_to_inner_location(pv, drag.imposed_view_within_task.view_location_of_inner_origin)
-        console.log(drag, pv)
+//        console.log(drag, pv)
         task.my_environment_units_per_child_environment_unit = drag.imposed_view_within_task.view_units_per_inner_unit / pv.view_units_per_inner_unit
         send("UpdateTask", task)
     }
