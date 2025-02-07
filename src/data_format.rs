@@ -22,8 +22,11 @@ pub struct Task {
     pub long_name: String,
     pub description: String,
 
+    // Location is relative to parent, if you have a parent
     pub location: Vector2<f64>,
     pub parent: Option<TaskId>,
+    // Irrelevant if you have no children
+    pub my_environment_units_per_child_environment_unit: f64,
     pub relationships: Vec<TaskRelationship>,
 
     pub status: TaskStatus,
