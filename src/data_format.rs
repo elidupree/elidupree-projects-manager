@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use uuid::Uuid;
 
 pub type TaskId = Uuid;
@@ -30,7 +30,7 @@ pub struct Task {
     pub relationships: Vec<TaskRelationship>,
 
     pub status: TaskStatus,
-    pub tags: HashSet<String>,
+    pub tags: BTreeSet<String>,
     pub updates: Vec<Update>,
 }
 
