@@ -13,7 +13,7 @@ for (const input of document.querySelectorAll("#task_info [name]")) {
 const task_status_element = document.getElementById("task_status")
 const task_tags_element = document.getElementById("task_tags")
 const task_status_buttons = new Map()
-for (const status of ["Indefinite", "NotStarted", "InProgress", "PartiallyCompleted", "Completed", "Obviated"]) {
+for (const status of ["Indefinite", "NotStarted", "InProgress", "PartiallyCompleted", "Completed", "Obviated", "NeverIntended"]) {
     const element = document.createElement("button")
     element.textContent = status
     element.addEventListener("click", event => {
@@ -105,6 +105,7 @@ collection_element.addEventListener("wheel", (event) => {
     global_view.view_location_of_inner_origin = zipWith([eventlike_view_location(event), global_view.view_location_of_inner_origin], p => p[0] + (p[1]-p[0]) * ratio)
     global_view.view_units_per_inner_unit *= ratio
     update_container_ui(null)
+    event.preventDefault()
 })
 
 function location_add (a, b) {
@@ -330,6 +331,7 @@ function update_container_ui(id) {
         cache.view_within = view_upon_task_to_view_upon_children(cache.view_upon, task)
     }
     if (cache.children.length === 0) {
+        cache.z_index += 100
         cache.view_bounds = {
             top: cache.view_within.view_location_of_inner_origin[1],
             left: cache.view_within.view_location_of_inner_origin[0],
