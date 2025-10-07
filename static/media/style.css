@@ -43,6 +43,12 @@ body {
     background-color: #dddd;
     transform: translate(-50%, -50%);
 }
+.single_task.not_actionable {
+    background: #ddd8;
+    color: #444a;
+    padding: 0.4em;
+    border: 0.2em solid #0001;
+}
 .task_group {
     background: #0003;
     padding: 0.6em;

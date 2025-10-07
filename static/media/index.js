@@ -331,7 +331,11 @@ function update_container_ui(id) {
         cache.view_within = view_upon_task_to_view_upon_children(cache.view_upon, task)
     }
     if (cache.children.length === 0) {
-        cache.z_index += 100
+        if (task && is_not_actionable(task)) {
+          cache.z_index += 100;
+        } else {
+          cache.z_index += 200;
+        }
         cache.view_bounds = {
             top: cache.view_within.view_location_of_inner_origin[1],
             left: cache.view_within.view_location_of_inner_origin[0],
@@ -408,6 +412,10 @@ function update_container_ui(id) {
     }
 }
 
+function is_not_actionable(task) {
+    return task.status === "Completed" || task.status === "Obviated" || task.status === "NeverIntended";
+}
+
 function update_task_ui(task, view_upon_task) {
     let task_element = document.getElementById (task.id)
     const cache = container_ui_cache_map.get(task.id)
@@ -443,6 +451,9 @@ function update_task_ui(task, view_upon_task) {
         task_element.className = "task task_group"
     } else {
         task_element.className = "task single_task"
+        if (is_not_actionable(task)) {
+          task_element.classList.add("not_actionable")
+        }
     }
 
     // TODO: don't be quadratic
